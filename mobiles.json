@@ -1,0 +1,44 @@
+{
+  "ice": {
+    "base_angle": 70,
+    "gravity": 9.8,
+    "bands": {
+      "short": {
+        "v_scale": 1.199884344413562,
+        "wind_x_coeff": 1.6567029479442792,
+        "wind_y_coeff": 0.6103724256877616
+      },
+      "mid": {
+        "v_scale": 1.1999024352906695,
+        "wind_x_coeff": 1.2274558531872222,
+        "wind_y_coeff": 0.11843806022110911
+      },
+      "long": {
+        "v_scale": 1.0,
+        "wind_x_coeff": 0.8,
+        "wind_y_coeff": 0.4
+      }
+    }
+  },
+  "armor": {
+    "base_angle": 70,
+    "gravity": 9.8,
+    "bands": {
+      "short": {
+        "v_scale": 1.1522757126406564,
+        "wind_x_coeff": 0.10441721953417943,
+        "wind_y_coeff": 0.36585266308575426
+      },
+      "mid": {
+        "v_scale": 1.199932244714213,
+        "wind_x_coeff": 0.865041421476023,
+        "wind_y_coeff": 0.431624279831053
+      },
+      "long": {
+        "v_scale": 1.05,
+        "wind_x_coeff": 0.8,
+        "wind_y_coeff": 0.4
+      }
+    }
+  }
+}
