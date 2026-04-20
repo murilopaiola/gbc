@@ -96,15 +96,15 @@ NEEDLE_WARM_FACTOR = 40.0
 MIN_PEAK_SEP_DEG = 30
 
 # OCR crop: area containing the wind-strength number, relative to capture region.
+# Absolute screen coords: (1262, 313) – (1303, 348)  →  minus rose origin (1230, 277).
 OCR_X0, OCR_Y0 = 32, 36
 OCR_X1, OCR_Y1 = 73, 71
 
-# Template matching thresholds.
-# Digit outlines are <100 brightness; needle pixels are ~115-148 (won't interfere).
-OCR_DARK_THRESH = 100
-# Maximum acceptable SSD for a valid match (per pixel in binary crop).
-# A perfect match gives 0; a wrong digit typically gives 200+.
-OCR_SSD_LIMIT   = 500
+# Maximum mean absolute error (0–255 scale) for a valid strength match.
+# Templates captured from live screenshots score ~0; templates from other sources
+# may score ~42 for the correct digit and ~44+ for wrong digits.
+# 50 accepts the best match while still rejecting completely wrong reads.
+OCR_MAE_LIMIT = 50
 
 # How long to wait between polls (seconds).
 POLL_INTERVAL = 0.3
@@ -117,6 +117,9 @@ BUFFER_SIZE = 5
 # Output file.
 WIND_JSON  = DATA_DIR / "wind.json"
 DEBUG_IMG  = DATA_DIR / "wind_debug.png"
+
+# Substring of the game window title used to locate the process (case-insensitive).
+GAME_WINDOW_TITLE = "GunBound"
 
 
 # ── Window helpers ────────────────────────────────────────────────────────────
@@ -262,11 +265,9 @@ def detect_direction_shape(img: Image.Image) -> tuple:
         rear_mid = _circular_mean([top3[ri], top3[rj]])
         non_rear = [top3[i] for i in range(n) if i not in {ri, rj}]
         tip_deg_grid = max(non_rear, key=lambda d: _angular_dist(d, rear_mid))
-        arm_degs_grid = top3
     else:
         # Fewer than 3 peaks: return the highest-scoring one.
         tip_deg_grid = peaks[0]
-        arm_degs_grid = peaks[:1]
 
     # ─ Sub-step parabolic interpolation ──────────────────────────────────
     # Fit a parabola through each grid-peak and its two neighbours to find
@@ -280,7 +281,6 @@ def detect_direction_shape(img: Image.Image) -> tuple:
             return float(deg)
         return (deg + 0.5 * step * (p - n_) / denom) % 360
 
-    arm_angles: list[float] = [_refine(d) for d in arm_degs_grid]
     tip_deg = _refine(tip_deg_grid)
 
     # ─ Compute tip_pixel for debug overlay ───────────────────────────────
@@ -290,51 +290,25 @@ def detect_direction_shape(img: Image.Image) -> tuple:
         int(round(cy - INNER_SCAN_MAX * math.sin(tip_rad))),
     )
 
-    return round(tip_deg, 1), tip_pixel, arm_angles
+    return round(tip_deg, 1), tip_pixel
 
 
 # ── Strength template matching ───────────────────────────────────────────────
 
-def _binarize_crop(img: Image.Image) -> tuple:
-    """
-    Extract the digit crop, convert to grayscale, and return a flat tuple of
-    binary values (1 = dark outline pixel, 0 = background/needle/interior).
-    """
+def _grayscale_crop(img: Image.Image) -> tuple:
+    """Extract the digit crop as a flat tuple of raw grayscale values (0–255)."""
     crop = img.crop((OCR_X0, OCR_Y0, OCR_X1, OCR_Y1)).convert("L")
     w, h = crop.size
     px = crop.load()
-    return tuple(1 if px[x, y] < OCR_DARK_THRESH else 0
-                 for y in range(h) for x in range(w))
+    return tuple(px[x, y] for y in range(h) for x in range(w))
 
 
-def _needle_mask_for_crop(arm_angles: list[float], half_width: float = 2.5) -> tuple:
-    """
-    Return a per-pixel mask (1=use, 0=skip) for the OCR crop.
-
-    Masks every arm of the V-needle: any pixel within `half_width` pixels of
-    ANY arm line (infinite line through rose center at that arm's angle) is
-    excluded from the SSD so needle interference cannot corrupt the digit read.
-
-    `arm_angles` should be all detected arm directions (up to 3 for the V-needle),
-    NOT just the tip.  Convention: 0°=East, CCW.
-    """
-    mcx = ROSE_CENTER_X - OCR_X0  # rose center in crop coords
-    mcy = ROSE_CENTER_Y - OCR_Y0
-    # Precompute unit vectors for each arm (screen: x-right, y-down → y flipped)
-    arms = [(math.cos(math.radians(a)), -math.sin(math.radians(a)))
-            for a in arm_angles]
-    w = OCR_X1 - OCR_X0
-    h = OCR_Y1 - OCR_Y0
-    mask = []
-    for py in range(h):
-        for px in range(w):
-            # Mask pixel if it falls within half_width of ANY arm line
-            near = any(
-                abs((px - mcx) * uy - (py - mcy) * ux) <= half_width
-                for ux, uy in arms
-            )
-            mask.append(0 if near else 1)
-    return tuple(mask)
+def _grayscale_crop_shifted(img: Image.Image, dx: int, dy: int) -> tuple:
+    """Extract the digit crop shifted by (dx, dy) pixels."""
+    crop = img.crop((OCR_X0 + dx, OCR_Y0 + dy, OCR_X1 + dx, OCR_Y1 + dy)).convert("L")
+    w, h = crop.size
+    px = crop.load()
+    return tuple(px[x, y] for y in range(h) for x in range(w))
 
 
 @functools.lru_cache(maxsize=1)
@@ -354,43 +328,53 @@ def _load_strength_templates() -> dict:
             continue
         try:
             img = Image.open(str(path)).convert("RGB")
-            templates[val] = _binarize_crop(img)
+            templates[val] = _grayscale_crop(img)
         except Exception:
             continue
     return templates
 
 
-def detect_strength(img: Image.Image, arm_angles: list[float] | None = None) -> int:
+def detect_strength(img: Image.Image, _debug: bool = False) -> int:
     """
     Match the digit crop against reference templates stored in data/XX.png.
 
-    Returns the integer wind strength (0–26), or -1 if no templates are loaded
-    or no template is close enough (SSD > OCR_SSD_LIMIT).
+    Returns the integer wind strength (0–26), or -1 if no template is close
+    enough (MAE > OCR_MAE_LIMIT).
 
-    arm_angles: all detected needle arm angles (degrees, 0=East CCW).  Pixels
-    near ANY arm line are excluded from the SSD so needle interference cannot
-    corrupt the digit read.  Pass the third return value of detect_direction_shape.
+    Searches all (dx, dy) offsets in {−2..−2}×{-2..+2} (25 positions) and picks
+    the offset+template combination with the lowest MAE.  This makes the matcher
+    immune to ≤2px positional drift without any manual re-calibration.
     """
     templates = _load_strength_templates()
     if not templates:
         return -1
     try:
-        query = _binarize_crop(img)
-        if arm_angles:
-            mask = _needle_mask_for_crop(arm_angles)
-            best_val, best_ssd = min(
-                ((v, sum((a - b) * (a - b)
-                         for a, b, m in zip(query, t, mask) if m))
-                 for v, t in templates.items()),
-                key=lambda x: x[1],
-            )
-        else:
-            best_val, best_ssd = min(
-                ((v, sum((a - b) * (a - b) for a, b in zip(query, t)))
-                 for v, t in templates.items()),
-                key=lambda x: x[1],
-            )
-        return best_val if best_ssd <= OCR_SSD_LIMIT else -1
+        best_val = -1
+        best_mae = float("inf")
+        best_dx  = 0
+        best_dy  = 0
+        offsets  = range(-2, 3)  # -2, -1, 0, +1, +2
+        for dy in offsets:
+            for dx in offsets:
+                query = _grayscale_crop_shifted(img, dx, dy)
+                n     = len(query)
+                for v, t in templates.items():
+                    mae = sum(abs(q - tm) for q, tm in zip(query, t)) / n
+                    if mae < best_mae:
+                        best_mae = mae
+                        best_val = v
+                        best_dx  = dx
+                        best_dy  = dy
+        if _debug:
+            # Re-run at best offset to collect per-template scores for display.
+            query = _grayscale_crop_shifted(img, best_dx, best_dy)
+            n     = len(query)
+            scores_list = [(sum(abs(q - tm) for q, tm in zip(query, t)) / n, v)
+                           for v, t in templates.items()]
+            for mae, v in sorted(scores_list)[:5]:
+                print(f"  template {v:02d}: MAE={mae:.2f}")
+            print(f"  best={best_val}  MAE={best_mae:.2f}  offset=({best_dx:+d},{best_dy:+d})  limit={OCR_MAE_LIMIT}")
+        return best_val if best_mae <= OCR_MAE_LIMIT else -1
     except Exception:
         return -1
 
@@ -473,6 +457,33 @@ def _annotate_debug(img: Image.Image, angle: float, tip_pixel: tuple[int, int] |
     return debug
 
 
+def run_capture(n: int) -> None:
+    """
+    Capture the current rose frame and save it as data/{n:02d}.png.
+
+    Use this to re-capture a template while the game shows wind strength N.
+    Overwrites any existing template for that value and invalidates the cache.
+    """
+    if not HAS_MSS:
+        print("ERROR: mss not installed.  pip install mss")
+        return
+    if not (0 <= n <= 26):
+        print(f"ERROR: strength must be 0–26, got {n}")
+        return
+
+    with mss.mss() as sct:
+        img = capture_rose(sct)
+
+    path = DATA_DIR / f"{n:02d}.png"
+    img.save(str(path))
+    _load_strength_templates.cache_clear()
+
+    detected = detect_strength(img, _debug=True)
+    status = "✓ matches" if detected == n else f"✗ detected {detected}"
+    print(f"Saved {path}  ({status})")
+    print("Re-run --test to verify the full template library.")
+
+
 def run_calibrate() -> None:
     """
     Capture one frame, run detection, annotate it with overlays,
@@ -486,10 +497,15 @@ def run_calibrate() -> None:
     with mss.mss() as sct:
         img = capture_rose(sct)
 
-    angle, tip_pixel, arm_angles = detect_direction_shape(img)
-    strength = detect_strength(img, arm_angles=arm_angles)
+    angle, tip_pixel = detect_direction_shape(img)
+    strength = detect_strength(img, _debug=True)
     debug = _annotate_debug(img, angle, tip_pixel)
     debug.save(str(DEBUG_IMG))
+
+    # Save the raw digit crop so its position can be verified visually.
+    crop_path = DATA_DIR / "wind_debug_crop.png"
+    img.crop((OCR_X0, OCR_Y0, OCR_X1, OCR_Y1)).save(str(crop_path))
+    print(f"Digit crop saved → {crop_path}  (should contain only the wind number)")
 
     print(f"Detected  →  strength={strength}  angle={angle:.1f}°")
     print(f"Debug image saved → {DEBUG_IMG}")
@@ -504,43 +520,48 @@ def run_calibrate() -> None:
 
 def run_test() -> None:
     """
-    Run detection on all assets/wind*.png reference images (no game needed).
-    Saves an annotated copy of the last image to data/wind_debug.png.
+    Self-test: load every template from data/XX.png and verify detect_strength
+    returns the correct value (MAE should be ~0 on a self-match).
+    Also tests any wind*.png images found in data/ as live examples.
     """
-    test_images = sorted(ASSETS_DIR.glob("wind*.png"))
-    if not test_images:
-        print(f"ERROR: no wind*.png found in {ASSETS_DIR}")
+    templates = _load_strength_templates()
+    if not templates:
+        print(f"ERROR: no templates found in {DATA_DIR}")
         return
 
-    # Ground truth for reference images.
-    expected = {
-        "wind.png":  ("≈234° (bottom-left)", 1),
-        "wind2.png": ("≈8°   (east)",        21),   # needle overlaps digits; may read 20
-        "wind3.png": ("≈84°  (up/north)",    11),
-    }
+    print(f"Strength templates loaded: {len(templates)}  (from {DATA_DIR})\n")
 
-    n_templates = len(_load_strength_templates())
-    print(f"Strength templates loaded: {n_templates}  (from {DATA_DIR})\n")
+    # ── Self-test: every template must recognise itself ────────────────────────
+    print("Self-test (each template image → must return its own value):")
+    n_pass = n_fail = 0
+    for v in sorted(templates):
+        path = DATA_DIR / f"{v:02d}.png"
+        img  = Image.open(str(path)).convert("RGB")
+        got  = detect_strength(img)
+        if got == v:
+            n_pass += 1
+        else:
+            n_fail += 1
+            print(f"  FAIL  {path.name}: expected {v}, got {got}")
+            detect_strength(img, _debug=True)
+    if n_fail == 0:
+        print(f"  All {n_pass} templates ✓\n")
+    else:
+        print(f"  {n_pass} passed, {n_fail} FAILED\n")
 
-    last_debug_path = None
+    # ── Live examples: any wind*.png in data/ (excluding debug images) ────────
+    test_images = sorted(p for p in DATA_DIR.glob("wind*.png") if "_debug" not in p.name)
+    if not test_images:
+        return
+    print("Live test images:")
     for img_path in test_images:
         img = Image.open(str(img_path)).convert("RGB")
-        angle, tip_pixel, arm_angles = detect_direction_shape(img)
-        strength = detect_strength(img, arm_angles=arm_angles)
-
-        exp_angle, exp_str = expected.get(img_path.name, ("unknown", None))
-        str_note = f"  ← expected {exp_str}" if exp_str is not None and strength != exp_str else ""
-        print(f"{img_path.name}  ({img.width}×{img.height})")
-        print(f"  Expected  →  angle={exp_angle}  strength={exp_str}")
-        print(f"  Detected  →  strength={strength}{str_note}  angle={angle:.1f}°  tip={tip_pixel}")
-
+        angle, tip_pixel = detect_direction_shape(img)
+        strength = detect_strength(img, _debug=True)
+        print(f"  {img_path.name}: strength={strength}  angle={angle:.1f}°")
         debug_path = DATA_DIR / f"wind_debug_{img_path.stem}.png"
-        debug = _annotate_debug(img, angle, tip_pixel)
-        debug.save(str(debug_path))
-        last_debug_path = debug_path
-
-    if last_debug_path:
-        print(f"\nDebug images saved to {DATA_DIR}  (yellow line/dot = detected tip)")
+        _annotate_debug(img, angle, tip_pixel).save(str(debug_path))
+    print(f"  Debug images saved to {DATA_DIR}")
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -567,8 +588,8 @@ def run_reader() -> None:
         while True:
             try:
                 img          = capture_rose(sct)
-                raw_angle, _, arm_angles = detect_direction_shape(img)
-                raw_strength = detect_strength(img, arm_angles=arm_angles)
+                raw_angle, _ = detect_direction_shape(img)
+                raw_strength = detect_strength(img)
                 buf.push(raw_strength, raw_angle)
                 if buf.full:
                     strength = buf.stable_strength()
@@ -603,9 +624,20 @@ def main() -> None:
         "--test", action="store_true",
         help="Run detection on assets/wind.png and print the result (no game needed).",
     )
+    parser.add_argument(
+        "--capture", type=int, metavar="N",
+        help="Capture current rose frame and save as data/NN.png template, then exit. "
+             "Use while the game shows wind strength N (0–26).",
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Capture one frame, print MAE scores for all templates, save debug image.",
+    )
     args = parser.parse_args()
 
-    if args.calibrate:
+    if args.capture is not None:
+        run_capture(args.capture)
+    elif args.calibrate or args.debug:
         run_calibrate()
     elif args.test:
         run_test()

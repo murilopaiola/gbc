@@ -970,5 +970,14 @@
     "wind_angle": -100.0,
     "height_diff": 0.0,
     "actual_sd": 0.325
+  },
+  {
+    "mobile": "armor",
+    "angle": 78.0,
+    "power": 3.74,
+    "wind_strength": 13.0,
+    "wind_angle": -160.0,
+    "height_diff": -0.14,
+    "actual_sd": 0.7
   }
 ]
