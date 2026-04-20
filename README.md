@@ -105,6 +105,7 @@ Currently calibrated from real shots: **armor**, **ice**.
 **Initial velocity** ($v_\text{init} = \text{power}^{e} \cdot s$, where $e$ = `power_exp`, $s$ = `v_scale`):
 $$v_x^0 = v_\text{init} \cdot \cos\alpha, \quad v_y^0 = v_\text{init} \cdot \sin\alpha$$
 
+
 **Wind decomposition** (integer-truncated before coefficient scaling, matching the engine):
 $$w_x = \lfloor W \sin\theta \rfloor \cdot c_x, \quad w_y = \lfloor W \cos\theta \rfloor \cdot c_y$$
 
