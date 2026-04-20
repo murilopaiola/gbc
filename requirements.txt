@@ -1,0 +1,13 @@
+# Core requirements
+Pillow
+
+# Optional: tools/ruler.py and tools/gen_ruler.py
+# pywin32
+
+# Optional: tools/memory_reader.py (process memory reading)
+# pymem
+# PyQt5
+# numpy
+# mss
+# opencv-python
+# pyautogui

@@ -1,17 +1,25 @@
 """
-gen_ruler.py  —  Generate ruler.png for the GunBound overlay.
+gen_ruler.py  —  Generate assets/ruler.png for the GunBound overlay.
 
 Requirements:
     pip install Pillow
 
-Run:
-    python gen_ruler.py
+Run from project root:
+    python tools/gen_ruler.py
 Output:
-    ruler.png  (1600×1200, RGBA transparent)
+    assets/ruler.png  (1600×1200, RGBA transparent)
 """
 
-from PIL import Image, ImageDraw, ImageFont
 import os
+import sys
+from pathlib import Path
+
+# Allow running from any directory
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from PIL import Image, ImageDraw, ImageFont
+
+from gunbound.storage import ASSETS_DIR
 
 # ── Configuration (must match ruler.py) ───────────────────────────────────────
 SCREEN_W   = 1600
@@ -19,7 +27,7 @@ SCREEN_H   = 1200
 RULER_SIZE = 50    # strip thickness in px
 TICK_PX    = 200   # 200 px = 0.125 SD  (1600 px = 1.0 SD)
 
-OUT_FILE   = "ruler.png"
+OUT_FILE   = str(ASSETS_DIR / "ruler.png")
 
 # ── Colors (R, G, B, A) ────────────────────────────────────────────────────────
 TICK_COLOR  = (255, 30,  30,  255)   # red ticks / text
@@ -158,6 +166,7 @@ def main():
     cy = (RULER_SIZE - (bbox[3] - bbox[1])) // 2
     draw_outlined_text(draw, (cx, cy), "SD", font_sd, TICK_COLOR, OUTLINE_CLR)
 
+    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     img.save(OUT_FILE, "PNG")
     print(f"Saved {OUT_FILE}  ({SCREEN_W}x{SCREEN_H} RGBA)")
 

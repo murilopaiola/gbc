@@ -1,0 +1,94 @@
+{
+  "armor": {
+    "v_scale": 1.315376,
+    "wind_x_coeff": 0.097245,
+    "wind_y_coeff": 0.1175,
+    "power_exp": 0.970755
+  },
+  "mage": {
+    "v_scale": 1.43,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "nak": {
+    "v_scale": 1.631,
+    "wind_x_coeff": 0.14,
+    "wind_y_coeff": 0.14
+  },
+  "trico": {
+    "v_scale": 1.55,
+    "wind_x_coeff": 0.12,
+    "wind_y_coeff": 0.12
+  },
+  "bigfoot": {
+    "v_scale": 1.604,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "boomer": {
+    "v_scale": 1.337,
+    "wind_x_coeff": 0.19,
+    "wind_y_coeff": 0.19
+  },
+  "raon": {
+    "v_scale": 1.522,
+    "wind_x_coeff": 0.11,
+    "wind_y_coeff": 0.11
+  },
+  "lightning": {
+    "v_scale": 1.363,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "jd": {
+    "v_scale": 1.337,
+    "wind_x_coeff": 0.08,
+    "wind_y_coeff": 0.08
+  },
+  "asate": {
+    "v_scale": 1.475,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "ice": {
+    "v_scale": 1.467628,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1,
+    "power_exp": 0.844511
+  },
+  "turtle": {
+    "v_scale": 1.45,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "grub": {
+    "v_scale": 1.321,
+    "wind_x_coeff": 0.09,
+    "wind_y_coeff": 0.09
+  },
+  "aduka": {
+    "v_scale": 1.369,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "knight": {
+    "v_scale": 1.369,
+    "wind_x_coeff": 0.1,
+    "wind_y_coeff": 0.1
+  },
+  "kalsiddon": {
+    "v_scale": 1.592,
+    "wind_x_coeff": 0.12,
+    "wind_y_coeff": 0.12
+  },
+  "jfrog": {
+    "v_scale": 1.247,
+    "wind_x_coeff": 0.09,
+    "wind_y_coeff": 0.09
+  },
+  "dragon": {
+    "v_scale": 1.247,
+    "wind_x_coeff": 0.09,
+    "wind_y_coeff": 0.09
+  }
+}

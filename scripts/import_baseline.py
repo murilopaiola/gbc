@@ -1,6 +1,6 @@
 """
-import_baseline.py  —  Seed training_data.json with known no-wind shots.
-Run once:  python import_baseline.py
+import_baseline.py  —  Seed data/training_data.json with known no-wind shots.
+Run once:  python scripts/import_baseline.py
 
 To add a new mobile, add an entry to BASELINES below.
 Each entry is:
@@ -19,10 +19,13 @@ Distances are in SD units (1 tela = 1.0 SD = 1600 px).
 For range values (e.g. "3.1–3.2"), use the midpoint (3.15).
 """
 
-import json, os
+import sys
+from pathlib import Path
 
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
-TRAINING_FILE = os.path.join(BASE_DIR, "training_data.json")
+# Allow running from any directory
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from gunbound.storage import load_training, save_training
 
 # ── Baseline data ──────────────────────────────────────────────────────────────
 
@@ -72,12 +75,7 @@ BASELINES = {
 
 # ── Import ─────────────────────────────────────────────────────────────────────
 
-if os.path.exists(TRAINING_FILE):
-    with open(TRAINING_FILE, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-        data = json.loads(content) if content else []
-else:
-    data = []
+data = load_training()
 
 existing = {
     (e["mobile"], e["angle"], e["power"], e["wind_strength"], e["wind_angle"], e["height_diff"], e["actual_sd"])
@@ -100,8 +98,6 @@ for mobile, cfg in BASELINES.items():
             })
 
 data.extend(new_entries)
-
-with open(TRAINING_FILE, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
+save_training(data)
 
 print(f"Added {len(new_entries)} entries. Total: {len(data)}")

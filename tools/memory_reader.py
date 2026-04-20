@@ -1,3 +1,5 @@
+# This script only works in GunBound.gme (open-source Gunbound server) and is not compatible with the official Gunbound game client.
+
 import sys
 from enum import IntEnum
 from math import cos, sin, sqrt, radians
