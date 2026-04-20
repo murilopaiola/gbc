@@ -29,6 +29,19 @@ TICK_PX    = 200   # 200 px = 0.125 SD  (1600 px = 1.0 SD)
 
 OUT_FILE   = str(ASSETS_DIR / "ruler.png")
 
+# ── Wind rose cutout ──────────────────────────────────────────────────────────
+# The ruler overlay must not cover the wind rose HUD element.
+# Rose absolute screen coords on 2560×1440: top-left (1230, 277), size 109×109.
+# Ruler window top-left on screen ≈ ((2560-1600)//2, (1440-1200)//2 + 25)
+#                                  = (480, 145).
+# Rose in ruler PNG coordinates: (1230-480, 277-145) = (750, 132).
+# Adjust ROSE_MARGIN for extra clearance if needed.
+ROSE_RULER_X = 750
+ROSE_RULER_Y = 132
+ROSE_RULER_W = 109
+ROSE_RULER_H = 109
+ROSE_MARGIN  = 10
+
 # ── Colors (R, G, B, A) ────────────────────────────────────────────────────────
 TICK_COLOR  = (255, 30,  30,  255)   # red ticks / text
 OUTLINE_CLR = (0,   0,   0,  255)   # black outline
@@ -165,6 +178,15 @@ def main():
     cx = (RULER_SIZE - (bbox[2] - bbox[0])) // 2
     cy = (RULER_SIZE - (bbox[3] - bbox[1])) // 2
     draw_outlined_text(draw, (cx, cy), "SD", font_sd, TICK_COLOR, OUTLINE_CLR)
+
+    # ── Wind rose cutout (erase all drawn content in that area) ─────────────────
+    cx0 = max(0, ROSE_RULER_X - ROSE_MARGIN)
+    cy0 = max(0, ROSE_RULER_Y - ROSE_MARGIN)
+    cx1 = min(SCREEN_W, ROSE_RULER_X + ROSE_RULER_W + ROSE_MARGIN)
+    cy1 = min(SCREEN_H, ROSE_RULER_Y + ROSE_RULER_H + ROSE_MARGIN)
+    clear = Image.new("RGBA", (cx1 - cx0, cy1 - cy0), (0, 0, 0, 0))
+    img.paste(clear, (cx0, cy0))
+    print(f"Wind rose cutout: ({cx0}, {cy0})–({cx1}, {cy1}) cleared")
 
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     img.save(OUT_FILE, "PNG")

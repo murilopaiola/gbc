@@ -38,6 +38,10 @@ import time
 import argparse
 import ctypes
 import functools
+
+# Force UTF-8 output so Unicode characters in print() don't crash on Windows cp1252 terminals.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from collections import deque, Counter
 from pathlib import Path
 
@@ -101,10 +105,10 @@ OCR_X0, OCR_Y0 = 32, 36
 OCR_X1, OCR_Y1 = 73, 71
 
 # Maximum mean absolute error (0–255 scale) for a valid strength match.
-# Templates captured from live screenshots score ~0; templates from other sources
-# may score ~42 for the correct digit and ~44+ for wrong digits.
-# 50 accepts the best match while still rejecting completely wrong reads.
-OCR_MAE_LIMIT = 50
+# Templates captured from the live game score ~0; needle interference adds
+# ~5–15 MAE on bad frames.  20 rejects clearly wrong matches while leaving
+# room for the worst-case needle hit on the digit crop.
+OCR_MAE_LIMIT = 20
 
 # How long to wait between polls (seconds).
 POLL_INTERVAL = 0.3

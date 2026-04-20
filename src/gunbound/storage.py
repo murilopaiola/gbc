@@ -20,6 +20,7 @@ ASSETS_DIR = PROJECT_ROOT / "assets"
 
 MOBILES_FILE  = CONFIG_DIR / "mobiles_v2.json"
 TRAINING_FILE = DATA_DIR   / "training_data.json"
+WIND_FILE     = DATA_DIR   / "wind.json"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

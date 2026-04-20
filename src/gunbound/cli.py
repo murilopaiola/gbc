@@ -9,19 +9,52 @@ Entry points:
 """
 
 import json
+import subprocess
 import sys
+from pathlib import Path
 
 from .calibration import calibrate, recalibrate_all, validate
 from .constants import KNOWN_MOBILES, POWER_MIN, POWER_MAX
 from .matching import suggest_shots
 from .physics import default_v_scale
 from .storage import (
+    PROJECT_ROOT,
     TRAINING_FILE,
+    WIND_FILE,
     load_mobiles,
     load_training,
     save_mobiles,
     save_training,
 )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Wind reader helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _start_wind_reader() -> subprocess.Popen | None:
+    """Spawn wind_reader.py as a background process. Returns Popen or None."""
+    script = PROJECT_ROOT / "tools" / "wind_reader.py"
+    if not script.exists():
+        return None
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, str(script)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return proc
+    except OSError:
+        return None
+
+
+def _read_wind_angle() -> float | None:
+    """Read wind angle from data/wind.json. Returns None if unavailable."""
+    try:
+        data = json.loads(Path(WIND_FILE).read_text(encoding="utf-8"))
+        return float(data["angle"])
+    except (OSError, KeyError, ValueError):
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -170,15 +203,37 @@ def main() -> None:
 
     print(f"  Mobile set to: {mobile_input.upper()}\n")
 
+    # Start wind reader in background
+    wind_proc = _start_wind_reader()
+    if wind_proc:
+        print("  Wind reader started in background.\n")
+
     while True:
         try:
+            while True:
+                d = input("Shooting direction (L/R): ").strip().lower()
+                if d in ("l", "r", "left", "right"):
+                    shoot_right = d.startswith("r")
+                    break
+                print("  Enter L (left) or R (right).")
             target_sd     = _prompt_float("Target SD (0.1–3.0): ", 0.1, 3.0)
             height_diff   = _prompt_float(
                 "Height diff (positive = you are higher, -1.0 to 1.0): ", -1.0, 1.0
             )
-            wind_angle    = _prompt_float(
-                "Wind angle (0=up, 90=toward enemy, -90=away, ±180=down): ", -180.0, 180.0
-            )
+            wind_angle = _read_wind_angle()
+            if wind_angle is not None:
+                # wind_reader: 0=East, CCW, 0–360
+                # GunBound:    0=up, CW, ±180 (positive = toward enemy)
+                # Assuming enemy is to the right: gb = 90 - reader (normalised to ±180)
+                gb = (90.0 - wind_angle + 180.0) % 360.0 - 180.0
+                if not shoot_right:
+                    gb = -gb
+                wind_angle = gb
+                print(f"  Wind angle: {wind_angle:+.1f}°  (from wind reader)")
+            else:
+                wind_angle = _prompt_float(
+                    "Wind angle (0=up, 90=toward, -90=away, ±180=down): ", -180.0, 180.0
+                )
             wind_strength = _prompt_float("Wind strength (0–26): ", 0.0, 26.0)
         except (EOFError, KeyboardInterrupt):
             break
