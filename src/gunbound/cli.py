@@ -108,10 +108,12 @@ def training_mode(mobiles_cfg: dict) -> None:
             wind_angle    = _prompt_float(
                 "Wind angle (0=up, 90=toward enemy, -90=away, ±180=down): ", -180.0, 180.0
             )
-            height_diff   = _prompt_float(
-                "Height diff (positive = you are higher than enemy): ", -1.0, 1.0
+            height_slices = _prompt_float(
+                "Height diff (slices, positive = you are higher): ", -8.0, 8.0
             )
-            actual_sd     = _prompt_float("Actual landing SD: ", 0.05, 5.0)
+            height_diff   = height_slices * 0.125
+            actual_slices = _prompt_float("Actual landing (slices): ", 0.4, 40.0)
+            actual_sd     = actual_slices * 0.125
 
             sample = {
                 "mobile":        mobile,
@@ -153,6 +155,13 @@ def training_mode(mobiles_cfg: dict) -> None:
 
 def main() -> None:
     # ── CLI flags ──────────────────────────────────────────────────────────
+    known_flags = {"--calibrate", "--validate", "--training"}
+    unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in known_flags]
+    if unknown:
+        print(f"Unknown flag(s): {', '.join(unknown)}")
+        print(f"  Valid flags: {', '.join(sorted(known_flags))}")
+        sys.exit(1)
+
     if "--calibrate" in sys.argv:
         print("\n=== GunBound Calculator — Calibration ===")
         cfg           = load_mobiles()
@@ -216,10 +225,12 @@ def main() -> None:
                     shoot_right = d.startswith("r")
                     break
                 print("  Enter L (left) or R (right).")
-            target_sd     = _prompt_float("Target SD (0.1–3.0): ", 0.1, 3.0)
-            height_diff   = _prompt_float(
-                "Height diff (positive = you are higher, -1.0 to 1.0): ", -1.0, 1.0
+            target_slices = _prompt_float("Target (slices, 1 slice = 0.125 SD): ", 0.8, 24.0)
+            target_sd     = target_slices * 0.125
+            height_slices = _prompt_float(
+                "Height diff (slices, positive = you are higher, -1.0 to 1.0): ", -8.0, 8.0
             )
+            height_diff   = height_slices * 0.125
             wind_angle = _read_wind_angle()
             if wind_angle is not None:
                 # wind_reader: 0=East, CCW, 0–360
@@ -229,7 +240,7 @@ def main() -> None:
                 if not shoot_right:
                     gb = -gb
                 wind_angle = gb
-                print(f"  Wind angle: {wind_angle:+.1f}°  (from wind reader)")
+                print(f"  Wind angle: {wind_angle:+.1f}°")
             else:
                 wind_angle = _prompt_float(
                     "Wind angle (0=up, 90=toward, -90=away, ±180=down): ", -180.0, 180.0
@@ -263,7 +274,8 @@ def main() -> None:
         if choice in [str(i) for i in range(1, len(shots) + 1)]:
             chosen = shots[int(choice) - 1]
             try:
-                actual_sd = _prompt_float("  Where did it land (SD)? ", 0.05, 5.0)
+                actual_slices = _prompt_float("  Where did it land (slices)? ", 0.4, 40.0)
+                actual_sd = actual_slices * 0.125
             except (EOFError, KeyboardInterrupt):
                 print()
                 continue
