@@ -20,6 +20,7 @@ tools = [
     "mss",
     "opencv-python",
     "pyautogui",
+    "pynput",
 ]
 
 [project.scripts]

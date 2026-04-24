@@ -27,6 +27,13 @@ from .storage import (
     save_training,
 )
 
+try:
+    from .position_capture import CaptureState, HAS_PYNPUT, start_listener
+except ImportError:
+    HAS_PYNPUT = False
+    CaptureState = None  # type: ignore[assignment,misc]
+    start_listener = lambda s: None  # type: ignore[assignment]
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Wind reader helpers
@@ -217,20 +224,72 @@ def main() -> None:
     if wind_proc:
         print("  Wind reader started in background.\n")
 
+    # Start position capture hotkey listener (if pynput is available)
+    capture_state = CaptureState() if HAS_PYNPUT else None
+    if capture_state is not None:
+        start_listener(capture_state)
+        print("  Hotkeys active: Ctrl+1 = mark own position, Ctrl+2 = mark target.\n")
+
     while True:
         try:
-            while True:
-                d = input("Shooting direction (L/R): ").strip().lower()
-                if d in ("l", "r", "left", "right"):
-                    shoot_right = d.startswith("r")
-                    break
-                print("  Enter L (left) or R (right).")
-            target_slices = _prompt_float("Target (slices, 1 slice = 0.125 SD): ", 0.8, 24.0)
-            target_sd     = target_slices * 0.125
-            height_slices = _prompt_float(
-                "Height diff (slices, positive = you are higher, -1.0 to 1.0): ", -8.0, 8.0
-            )
-            height_diff   = height_slices * 0.125
+            # ── Position capture override (Ctrl+1 / Ctrl+2 pre-filled) ──────
+            pair = capture_state.consume() if capture_state is not None else None
+            if pair is not None and not pair.is_valid:
+                print("  [Capture] Positions out of range — using manual input.")
+                pair = None
+
+            if pair is not None:
+                # Both positions captured and valid — skip direction/SD/height prompts
+                target_sd   = pair.target_slices * 0.125
+                height_diff = pair.height_slices * 0.125
+                shoot_right = pair.shoot_right
+                direction_label = "RIGHT" if shoot_right else "LEFT"
+                print(
+                    f"  Captured: direction={direction_label}  "
+                    f"target={pair.target_slices:.1f} slices ({target_sd:.3f} SD)  "
+                    f"height={pair.height_slices:+.1f} slices ({height_diff:+.3f} SD)"
+                )
+            else:
+                # Manual input — also re-checks capture on each Enter (handles the
+                # case where hotkeys were pressed while this prompt was blocking)
+                while True:
+                    d = input("Shooting direction (L/R): ").strip().lower()
+
+                    # Re-check: user may have pressed hotkeys while input() was blocking
+                    re_pair = capture_state.consume() if capture_state is not None else None
+                    if re_pair is not None and not re_pair.is_valid:
+                        print("  [Capture] Positions out of range — using manual input.")
+                        re_pair = None
+                    if re_pair is not None:
+                        # Switch to capture path mid-prompt
+                        pair = re_pair
+                        break
+
+                    if d in ("l", "r", "left", "right"):
+                        shoot_right = d.startswith("r")
+                        break
+                    if d:
+                        print("  Enter L (left) or R (right).")
+                    # empty input (user pressed Enter after hotkeys): loop silently
+
+                if pair is not None:
+                    # Capture path (same as the outer capture block above)
+                    target_sd   = pair.target_slices * 0.125
+                    height_diff = pair.height_slices * 0.125
+                    shoot_right = pair.shoot_right
+                    direction_label = "RIGHT" if shoot_right else "LEFT"
+                    print(
+                        f"  Captured: direction={direction_label}  "
+                        f"target={pair.target_slices:.1f} slices ({target_sd:.3f} SD)  "
+                        f"height={pair.height_slices:+.1f} slices ({height_diff:+.3f} SD)"
+                    )
+                else:
+                    target_slices = _prompt_float("Target (slices, 1 slice = 0.125 SD): ", 0.8, 24.0)
+                    target_sd     = target_slices * 0.125
+                    height_slices = _prompt_float(
+                        "Height diff (slices, positive = you are higher, -1.0 to 1.0): ", -8.0, 8.0
+                    )
+                    height_diff   = height_slices * 0.125
             wind_angle = _read_wind_angle()
             if wind_angle is not None:
                 # wind_reader: 0=East, CCW, 0–360

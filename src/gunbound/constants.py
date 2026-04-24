@@ -58,6 +58,12 @@ MATCH_CLOSE_THRESHOLD = 0.08   # d_sim below this → direct data suggestion
 MATCH_LOOSE_THRESHOLD = 0.15   # d_sim below this → residual correction applied
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Position capture hotkeys (pynput format)
+# ─────────────────────────────────────────────────────────────────────────────
+HOTKEY_OWN    = "<ctrl>+1"   # mark own character position
+HOTKEY_TARGET = "<ctrl>+2"   # mark target position
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Known mobiles (derived from MOBILE_PHYSICS)
 # ─────────────────────────────────────────────────────────────────────────────
 KNOWN_MOBILES: list[str] = sorted(MOBILE_PHYSICS.keys())

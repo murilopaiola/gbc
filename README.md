@@ -164,6 +164,7 @@ gunbound/
 │   ├── solver.py          # solve (coarse→refine)
 │   ├── matching.py        # suggest_shots, find_similar_shots, clustering
 │   ├── storage.py         # load/save mobiles & training data; path constants
+│   ├── position_capture.py # mouse hotkey capture (optional, needs pynput)
 │   └── cli.py             # main(), training_mode()
 ├── config/
 │   └── mobiles_v2.json    # calibrated parameters per mobile
@@ -318,6 +319,54 @@ To regenerate `assets/ruler.png` after changing these values:
 ```
 python tools/gen_ruler.py
 ```
+
+---
+
+## Mouse Position Hotkeys
+
+When you and the enemy are both visible on screen at the same time, you can skip typing direction, SD, and height manually. The calculator reads them from your mouse cursor position in real time.
+
+### How it works
+
+1. **Press Ctrl+1** while hovering over your own character — marks your position.
+2. **Press Ctrl+2** while hovering over the enemy — marks the target position.
+3. **Switch back to the terminal** (or go to the next round) — the captured values are used automatically for the next query.
+
+The horizontal distance between the two points maps to target SD (1 pixel = 1/1600 SD), and the vertical offset maps to height difference (200 pixels per slice = 0.125 SD). Shot direction (left/right) is inferred from which side the enemy was on.
+
+Hotkeys respond **globally** — they work while the game window has focus. You do not need to alt-tab to the terminal to press them.
+
+### Install dependency
+
+```
+pip install pynput
+```
+
+Or install all optional tools at once:
+
+```
+pip install -e ".[tools]"
+```
+
+If `pynput` is not installed, the calculator falls back to normal manual input with no other changes.
+
+### Requirements
+
+- GunBound must be running in **windowed mode** (not fullscreen) at its native resolution so that screen pixel coordinates match the ruler scale.
+- The ruler overlay (`tools/ruler.py`) uses the same pixel-to-SD scale — if you resize the game window, re-run `tools/gen_ruler.py` and update `SCREEN_W`/`SCREEN_H` in `tools/ruler.py`.
+
+### Hotkey bindings
+
+| Hotkey | Action |
+|---|---|
+| `Ctrl+1` | Record own character position |
+| `Ctrl+2` | Record target (enemy) position |
+
+Pressing `Ctrl+1` again before completing a capture clears the previous pair and starts fresh.
+
+### Fallback behaviour
+
+If the captured positions fall outside the valid input range (SD < 0.1 or > 3.0; height outside ±1.0), the calculator prints a warning and falls back to manual prompts for that round. You can also simply not use the hotkeys and type all values as normal.
 
 ---
 

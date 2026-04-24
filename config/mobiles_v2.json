@@ -1,9 +1,9 @@
 {
   "armor": {
-    "v_scale": 1.304437,
-    "wind_x_coeff": 0.096395,
-    "wind_y_coeff": 0.109624,
-    "power_exp": 0.970992
+    "v_scale": 1.311725,
+    "wind_x_coeff": 0.096545,
+    "wind_y_coeff": 0.10748,
+    "power_exp": 0.966904
   },
   "mage": {
     "v_scale": 1.43,
