@@ -45,7 +45,7 @@ ROSE_MARGIN  = 10
 # ── Colors (R, G, B, A) ────────────────────────────────────────────────────────
 TICK_COLOR  = (255, 30,  30,  255)   # red ticks / text
 OUTLINE_CLR = (0,   0,   0,  255)   # black outline
-GUIDE_CLR   = (100, 0,   0,   80)   # very faint dark-red guide lines
+GUIDE_CLR   = (220, 60,  60,  160)  # bright red guide lines
 
 
 def load_font(size):
@@ -87,18 +87,18 @@ def main():
 
     for i in range(1, n_h):
         px = i * TICK_PX
-        dash_len, gap_len = 4, 12
+        dash_len, gap_len = 6, 10
         y = RULER_SIZE
         while y < SCREEN_H:
-            g.line([(px, y), (px, min(y + dash_len, SCREEN_H))], fill=GUIDE_CLR, width=1)
+            g.line([(px, y), (px, min(y + dash_len, SCREEN_H))], fill=GUIDE_CLR, width=2)
             y += dash_len + gap_len
 
     for i in range(1, n_v):
         py = i * TICK_PX
-        dash_len, gap_len = 4, 12
+        dash_len, gap_len = 6, 10
         x = RULER_SIZE
         while x < SCREEN_W:
-            g.line([(x, py), (min(x + dash_len, SCREEN_W), py)], fill=GUIDE_CLR, width=1)
+            g.line([(x, py), (min(x + dash_len, SCREEN_W), py)], fill=GUIDE_CLR, width=2)
             x += dash_len + gap_len
 
     img = Image.alpha_composite(img, overlay)
