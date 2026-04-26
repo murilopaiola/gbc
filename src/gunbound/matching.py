@@ -15,6 +15,7 @@ import math
 
 from .constants import (
     MATCH_CLOSE_THRESHOLD, MATCH_LOOSE_THRESHOLD, MAX_SUGGESTIONS,
+    POWER_MIN, POWER_MAX,
 )
 from .models import ShotResult
 from .physics import simulate_shot, wind_components
@@ -127,6 +128,39 @@ def _min_angle_for_height(height_diff: float) -> int:
     return 55  # -0.02 to -0.05
 
 
+def _corrected_power(
+    angle: float,
+    target_sd: float,
+    mobile: str,
+    cfg: dict,
+    wind_strength: float,
+    wind_angle: float,
+    height_diff: float,
+) -> float:
+    """Binary-search power so simulate_shot hits target_sd at the given angle.
+
+    40 iterations give < 0.0001 power resolution. Returns raw value rounded to 2dp.
+    Falls back to POWER_MAX if the angle cannot reach target_sd at any power.
+    """
+    v_scale   = cfg.get("v_scale",      1.45)
+    power_exp = cfg.get("power_exp",    1.0)
+    wind_x    = cfg.get("wind_x_coeff", 0.10)
+    wind_y    = cfg.get("wind_y_coeff", 0.10)
+    lo, hi = POWER_MIN, POWER_MAX
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        result = simulate_shot(
+            angle, mid, mobile,
+            v_scale, power_exp, wind_x, wind_y,
+            wind_strength, wind_angle, height_diff,
+        )
+        if result < target_sd:
+            lo = mid
+        else:
+            hi = mid
+    return round((lo + hi) / 2, 2)
+
+
 def suggest_shots(
     mobiles_cfg: dict,
     mobile: str,
@@ -162,8 +196,12 @@ def suggest_shots(
             continue
         if any(abs(angle - a) < 3 for a in used_angles):
             continue
+        corrected = _corrected_power(
+            angle, sd, mobile, cfg,
+            wind_strength, wind_angle, height_diff,
+        )
         results.append(ShotResult(
-            angle=angle, power=power, error=spread,
+            angle=angle, power=corrected, error=spread,
             source="data", n_samples=n_samples,
         ))
         used_angles.add(angle)
