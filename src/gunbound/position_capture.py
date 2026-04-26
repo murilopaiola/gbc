@@ -193,12 +193,12 @@ def start_listener(state: CaptureState) -> object | None:
     def _on_own() -> None:
         x, y = _get_cursor_pos()
         state.set_own(x, y)
-        print(f"\n  [Capture] Own position recorded ({x}, {y})", flush=True)
+        print(f"\n  [Capture] 1st pos ({x}, {y})", flush=True)
 
     def _on_target() -> None:
         x, y = _get_cursor_pos()
         state.set_target(x, y)
-        print(f"\n  [Capture] Target position recorded ({x}, {y})", flush=True)
+        print(f"\n  [Capture] 2nd pos ({x}, {y})", flush=True)
 
     listener = _pynput_keyboard.GlobalHotKeys({
         HOTKEY_OWN:    _on_own,

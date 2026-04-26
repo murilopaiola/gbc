@@ -9,6 +9,7 @@ Entry points:
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,29 @@ except ImportError:
     HAS_PYNPUT = False
     CaptureState = None  # type: ignore[assignment,misc]
     start_listener = lambda s: None  # type: ignore[assignment]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Terminal color support
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _init_colors():
+    """Return an ANSI color namespace; falls back to empty strings on non-TTY."""
+    os.system("")  # Activate VT100 processing on Windows 10+
+    if not sys.stdout.isatty():
+        class _C:
+            RESET = CYAN = YELLOW = GREEN = WHITE = DIM = ""
+        return _C()
+    class _C:
+        RESET  = "\033[0m"
+        CYAN   = "\033[96m"
+        YELLOW = "\033[93m"
+        GREEN  = "\033[92m"
+        WHITE  = "\033[97m"
+        DIM    = "\033[2m"
+    return _C()
+
+_Color = _init_colors()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +86,39 @@ def _read_wind_angle() -> float | None:
         return float(data["angle"])
     except (OSError, KeyError, ValueError):
         return None
+
+
+def _read_wind_strength() -> int | None:
+    """Read wind strength from data/wind.json. Returns None if unavailable or negative."""
+    try:
+        data = json.loads(Path(WIND_FILE).read_text(encoding="utf-8"))
+        s = int(data["strength"])
+        return s if s >= 0 else None
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Output helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _print_captured_block(
+    direction_label: str,
+    target_slices: float,
+    target_sd: float,
+    height_slices: float,
+    height_diff: float,
+    wind_angle: float,
+    wind_strength: int | float,
+) -> None:
+    """Print the multi-line Captured: summary block with optional color."""
+    c = _Color
+    print(f"{c.YELLOW}Captured:{c.RESET}")
+    print(f"{c.YELLOW}  direction={direction_label}{c.RESET}")
+    print(f"{c.YELLOW}  target={target_slices:.1f} slices ({target_sd:.3f} SD){c.RESET}")
+    print(f"{c.YELLOW}  height={height_slices:+.1f} slices ({height_diff:+.3f} SD){c.RESET}")
+    print(f"{c.YELLOW}  Wind angle: {wind_angle:+.1f}°{c.RESET}")
+    print(f"{c.YELLOW}  Wind strength: {wind_strength}{c.RESET}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,15 +297,12 @@ def main() -> None:
 
             if pair is not None:
                 # Both positions captured and valid — skip direction/SD/height prompts
-                target_sd   = pair.target_slices * 0.125
-                height_diff = pair.height_slices * 0.125
+                target_slices = pair.target_slices
+                target_sd   = target_slices * 0.125
+                height_slices = pair.height_slices
+                height_diff = height_slices * 0.125
                 shoot_right = pair.shoot_right
                 direction_label = "RIGHT" if shoot_right else "LEFT"
-                print(
-                    f"  Captured: direction={direction_label}  "
-                    f"target={pair.target_slices:.1f} slices ({target_sd:.3f} SD)  "
-                    f"height={pair.height_slices:+.1f} slices ({height_diff:+.3f} SD)"
-                )
             else:
                 # Manual input — also re-checks capture on each Enter (handles the
                 # case where hotkeys were pressed while this prompt was blocking)
@@ -274,15 +328,12 @@ def main() -> None:
 
                 if pair is not None:
                     # Capture path (same as the outer capture block above)
-                    target_sd   = pair.target_slices * 0.125
-                    height_diff = pair.height_slices * 0.125
+                    target_slices = pair.target_slices
+                    target_sd   = target_slices * 0.125
+                    height_slices = pair.height_slices
+                    height_diff = height_slices * 0.125
                     shoot_right = pair.shoot_right
                     direction_label = "RIGHT" if shoot_right else "LEFT"
-                    print(
-                        f"  Captured: direction={direction_label}  "
-                        f"target={pair.target_slices:.1f} slices ({target_sd:.3f} SD)  "
-                        f"height={pair.height_slices:+.1f} slices ({height_diff:+.3f} SD)"
-                    )
                 else:
                     target_slices = _prompt_float("Target (slices, 1 slice = 0.125 SD): ", 0.8, 24.0)
                     target_sd     = target_slices * 0.125
@@ -290,6 +341,7 @@ def main() -> None:
                         "Height diff (slices, positive = you are higher, -1.0 to 1.0): ", -8.0, 8.0
                     )
                     height_diff   = height_slices * 0.125
+                    direction_label = "RIGHT" if shoot_right else "LEFT"
             wind_angle = _read_wind_angle()
             if wind_angle is not None:
                 # wind_reader: 0=East, CCW, 0–360
@@ -299,12 +351,20 @@ def main() -> None:
                 if not shoot_right:
                     gb = -gb
                 wind_angle = gb
-                print(f"  Wind angle: {wind_angle:+.1f}°")
             else:
                 wind_angle = _prompt_float(
                     "Wind angle (0=up, 90=toward, -90=away, ±180=down): ", -180.0, 180.0
                 )
-            wind_strength = _prompt_float("Wind strength (0–26): ", 0.0, 26.0)
+            wind_strength = int(_prompt_float("Wind strength: ", 0.0, 26.0))
+            _print_captured_block(
+                direction_label,
+                target_slices,
+                target_sd,
+                height_slices,
+                height_diff,
+                wind_angle,
+                wind_strength,
+            )
         except (EOFError, KeyboardInterrupt):
             break
 
@@ -318,18 +378,20 @@ def main() -> None:
             print("  No solution found — check inputs.\n")
             continue
 
-        print(f"\n  Suggestions for {mobile_input.upper()} @ {target_sd} SD  "
-              f"(wind {wind_strength}@{wind_angle:+.0f}°  height {height_diff:+.2f}):")
+        print(f"\n  Suggestions @ {target_sd:.3f} SD  "
+              f"(wind {wind_strength}@{wind_angle:+.0f}° height {height_diff:+.2f}):")
         for i, r in enumerate(shots, 1):
             if r.source == "data":
-                tag = f"data: {r.n_samples} shot(s), ±{r.error:.3f} SD spread"
+                tag   = f"data: {r.n_samples} shot(s), ±{r.error:.3f} SD spread"
+                color = _Color.GREEN
             else:
-                tag = f"physics, err {r.error:+.4f} SD"
-            print(f"    {i}) angle={r.angle:4.0f}°  power={r.power:.2f}  [{tag}]")
+                tag   = f"physics, err {r.error:+.4f} SD"
+                color = _Color.WHITE
+            print(f"{color}    {i}) {r.angle:.0f}°  power={r.power:.2f}  [{tag}]{_Color.RESET}")
         print()
 
         # Optional: record the shot used
-        choice = input("  Which did you use? (1–5 or Enter to skip): ").strip()
+        choice = input("  Which did you use? (Enter to skip): ").strip()
         if choice in [str(i) for i in range(1, len(shots) + 1)]:
             chosen = shots[int(choice) - 1]
             try:
