@@ -6,49 +6,58 @@
     "power_exp": 0.956424
   },
   "mage": {
-    "v_scale": 1.43,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.3012521873088139,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.101813,
+    "wind_y_coeff": 0.10018
   },
   "nak": {
-    "v_scale": 1.631,
-    "wind_x_coeff": 0.14,
-    "wind_y_coeff": 0.14
+    "v_scale": 1.4840547589126436,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.129224,
+    "wind_y_coeff": 0.127152
   },
   "trico": {
-    "v_scale": 1.55,
-    "wind_x_coeff": 0.12,
-    "wind_y_coeff": 0.12
+    "v_scale": 1.4104188209894049,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.113561,
+    "wind_y_coeff": 0.11174
   },
   "bigfoot": {
-    "v_scale": 1.604,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.4599221789195562,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.096592,
+    "wind_y_coeff": 0.095043
   },
   "boomer": {
-    "v_scale": 1.337,
-    "wind_x_coeff": 0.19,
-    "wind_y_coeff": 0.19
+    "v_scale": 1.2166018157662968,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.182089,
+    "wind_y_coeff": 0.179169
   },
   "raon": {
-    "v_scale": 1.522,
-    "wind_x_coeff": 0.11,
-    "wind_y_coeff": 0.11
+    "v_scale": 1.3850037875944967,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.107948,
+    "wind_y_coeff": 0.106217
   },
   "lightning": {
-    "v_scale": 1.363,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.2406952797729522,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.093981,
+    "wind_y_coeff": 0.092474
   },
   "jd": {
-    "v_scale": 1.337,
-    "wind_x_coeff": 0.08,
-    "wind_y_coeff": 0.08
+    "v_scale": 1.2166018157662968,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.081581,
+    "wind_y_coeff": 0.080273
   },
   "asate": {
-    "v_scale": 1.475,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.3415758992323297,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.099855,
+    "wind_y_coeff": 0.098254
   },
   "ice": {
     "v_scale": 1.467628,
@@ -57,38 +66,45 @@
     "power_exp": 0.844511
   },
   "turtle": {
-    "v_scale": 1.45,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.319326,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.096592,
+    "wind_y_coeff": 0.095043
   },
   "grub": {
-    "v_scale": 1.321,
-    "wind_x_coeff": 0.09,
-    "wind_y_coeff": 0.09
+    "v_scale": 1.2019139314654896,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.084844,
+    "wind_y_coeff": 0.083484
   },
   "aduka": {
-    "v_scale": 1.369,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.245458043081296,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.090718,
+    "wind_y_coeff": 0.089263
   },
   "knight": {
-    "v_scale": 1.369,
-    "wind_x_coeff": 0.1,
-    "wind_y_coeff": 0.1
+    "v_scale": 1.245458043081296,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.090718,
+    "wind_y_coeff": 0.089263
   },
   "kalsiddon": {
-    "v_scale": 1.592,
-    "wind_x_coeff": 0.12,
-    "wind_y_coeff": 0.12
+    "v_scale": 1.4477050421360715,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.118129,
+    "wind_y_coeff": 0.116235
   },
   "jfrog": {
-    "v_scale": 1.247,
-    "wind_x_coeff": 0.09,
-    "wind_y_coeff": 0.09
+    "v_scale": 1.1339877587503926,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.087455,
+    "wind_y_coeff": 0.086052
   },
   "dragon": {
-    "v_scale": 1.247,
-    "wind_x_coeff": 0.09,
-    "wind_y_coeff": 0.09
+    "v_scale": 1.1339877587503926,
+    "power_exp": 0.958738,
+    "wind_x_coeff": 0.087455,
+    "wind_y_coeff": 0.086052
   }
 }

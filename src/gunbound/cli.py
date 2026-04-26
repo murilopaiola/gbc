@@ -219,12 +219,54 @@ def training_mode(mobiles_cfg: dict) -> None:
 
 def main() -> None:
     # ── CLI flags ──────────────────────────────────────────────────────────
-    known_flags = {"--calibrate", "--validate", "--training"}
+    known_flags = {"--calibrate", "--validate", "--training", "--infer-priors", "--dry-run"}
     unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in known_flags]
     if unknown:
         print(f"Unknown flag(s): {', '.join(unknown)}")
         print(f"  Valid flags: {', '.join(sorted(known_flags))}")
         sys.exit(1)
+
+    if "--infer-priors" in sys.argv:
+        dry_run = "--dry-run" in sys.argv
+        print("\n=== GunBound Calculator — Infer Priors ===")
+        cfg = load_mobiles()
+        armor = cfg.get("armor", {})
+        if armor.get("power_exp") is None:
+            print("  ERROR: Armor is not fully calibrated — run --calibrate first.")
+            sys.exit(1)
+        from .inference import compute_priors, apply_priors
+        priors = compute_priors(cfg)
+        print(
+            f"  Armor reference: "
+            f"v_scale={armor['v_scale']:.4f}  "
+            f"wind_x={armor['wind_x_coeff']:.4f}  "
+            f"wind_y={armor['wind_y_coeff']:.4f}  "
+            f"power_exp={armor['power_exp']:.4f}"
+        )
+        print()
+        header = f"  {'mobile':<12}  {'v_scale':>7}  {'power_exp':>9}  {'wind_x':>6}  {'wind_y':>6}  status"
+        print(header)
+        print("  " + "─" * (len(header) - 2))
+        updated_count = 0
+        for mobile, prior in sorted(priors.items()):
+            existing = cfg.get(mobile, {})
+            fitted = "power_exp" in existing
+            status = "[SKIPPED — fully calibrated]" if fitted else "[UPDATED]"
+            if not fitted:
+                updated_count += 1
+            print(
+                f"  {mobile:<12}  {prior['v_scale']:>7.4f}  "
+                f"{prior['power_exp']:>9.4f}  "
+                f"{prior['wind_x_coeff']:>6.4f}  "
+                f"{prior['wind_y_coeff']:>6.4f}  {status}"
+            )
+        print()
+        if dry_run:
+            print(f"  [DRY-RUN] No files were modified.")
+        else:
+            apply_priors(cfg)
+            print(f"  {updated_count} mobile(s) updated. Saved to config/mobiles_v2.json.")
+        return
 
     if "--calibrate" in sys.argv:
         print("\n=== GunBound Calculator — Calibration ===")

@@ -1258,5 +1258,41 @@
     "wind_angle": -141.1,
     "height_diff": 0.0375,
     "actual_sd": 1.3875
+  },
+  {
+    "mobile": "armor",
+    "angle": 55.0,
+    "power": 1.59,
+    "wind_strength": 7,
+    "wind_angle": -139.5,
+    "height_diff": -0.038125,
+    "actual_sd": 0.4125
+  },
+  {
+    "mobile": "armor",
+    "angle": 79.0,
+    "power": 2.48,
+    "wind_strength": 6,
+    "wind_angle": -138.3,
+    "height_diff": -0.02,
+    "actual_sd": 0.3375
+  },
+  {
+    "mobile": "aduka",
+    "angle": 66.0,
+    "power": 3.66,
+    "wind_strength": 25,
+    "wind_angle": -110.9,
+    "height_diff": 0.1525,
+    "actual_sd": 0.875
+  },
+  {
+    "mobile": "aduka",
+    "angle": 55.0,
+    "power": 1.11,
+    "wind_strength": 3,
+    "wind_angle": 135.2,
+    "height_diff": 0.185625,
+    "actual_sd": 0.3375
   }
 ]

@@ -176,3 +176,82 @@ Denominators normalise each axis to its realistic full range:
 |---|---|
 | `d_sim < 0.08` | Close match — use as direct suggestion |
 | `d_sim < 0.15` | Loose match — use for residual bias correction only |
+
+---
+
+## 10. Physics-derived parameter priors (`inference.py`)
+
+When a mobile has no training data, the calibration system cannot fit its four parameters from observations. Rather than falling back to flat placeholder values, `src/gunbound/inference.py` computes *physics-derived priors* anchored to Armor's fully-fitted calibration.
+
+### 10.1 Fitted sentinel
+
+A mobile is **fully calibrated** if and only if its `config/mobiles_v2.json` entry contains the `"power_exp"` key. Any mobile without that key receives inferred defaults. Currently only `armor` and `ice` are fully calibrated.
+
+### 10.2 v_scale prior
+
+```
+v_scale_mobile = v_scale_armor × sqrt(g_mobile / g_armor)
+```
+
+**Derivation**: For a fixed angle and power, the landing SD scales approximately linearly with the initial speed. The initial speed scales with `v_scale × sqrt(g)` (from dimensional analysis of the Euler loop: at higher gravity the same power bar produces a proportionally faster projectile). Taking the ratio of two mobiles and solving for the unknown `v_scale`:
+
+```
+SD_mobile / SD_armor  ≈  v_scale_mobile × sqrt(g_mobile)
+                          ─────────────────────────────────
+                          v_scale_armor  × sqrt(g_armor)
+
+  →  v_scale_mobile = v_scale_armor × sqrt(g_mobile / g_armor)
+```
+
+The function `physics.default_v_scale()` implements this formula and is the single source of truth.
+
+### 10.3 Wind coefficient priors
+
+```
+wind_x_coeff_mobile = wind_x_coeff_armor × (ps_mobile / ps_armor)
+wind_y_coeff_mobile = wind_y_coeff_armor × (ps_mobile / ps_armor)
+```
+
+where `ps` is `projectile_speed` from `constants.MOBILE_PHYSICS`.
+
+**Derivation**: Wind deflection accumulated over a flight is proportional to `F_wind × t_flight`. A faster projectile (higher `projectile_speed`) spends less time in the air for the same SD, so the same wind force produces less deflection. The wind coefficient must therefore be scaled *up* for faster projectiles to express the same force, and *down* for slower ones. Rearranging:
+
+```
+deflection ≈ wind_coeff × W × t_flight  ∝  wind_coeff / ps
+```
+
+For two mobiles hitting the same SD under the same wind, deflection is equal, so:
+
+```
+wind_coeff_mobile / ps_mobile = wind_coeff_armor / ps_armor
+  →  wind_coeff_mobile = wind_coeff_armor × ps_mobile / ps_armor
+```
+
+### 10.4 power_exp prior
+
+```
+power_exp_mobile = power_exp_armor  (no derivation — copied directly)
+```
+
+There is no reliable physics relationship between `power_exp` and per-mobile constants. The exponent captures nonlinearity in the power bar mechanic that is not exposed by the gravity or speed constants. It is therefore copied from Armor until real shots allow fitting.
+
+### 10.5 Accuracy expectation
+
+Inferred priors are not calibrated parameters. They provide a physics-grounded starting point, not a precise fit. Expected accuracy for an uncalibrated mobile using inferred priors:
+
+| Condition | Expected error |
+|---|---|
+| Zero wind, mid-range | ±0.05 – 0.10 SD |
+| Moderate wind | ±0.10 – 0.20 SD |
+| Extreme wind or angle | may exceed ±0.25 SD |
+
+Running `--calibrate` with 20+ training shots for the target mobile will replace the priors with fitted values and reduce error to the Armor-level MAE (~0.015 SD).
+
+### 10.6 CLI usage
+
+```bash
+python main.py --infer-priors            # compute and write priors for all uncalibrated mobiles
+python main.py --infer-priors --dry-run  # preview table without modifying config/mobiles_v2.json
+```
+
+Mobiles that are already fully calibrated (have `power_exp` in their config entry) are skipped silently.
