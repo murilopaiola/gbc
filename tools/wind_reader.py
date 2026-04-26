@@ -118,6 +118,17 @@ POLL_INTERVAL = 0.3
 # lower latency.  Must be ≥ 3 for majority voting (min_fraction=0.6) to work.
 BUFFER_SIZE = 5
 
+# Motion detection: mean absolute pixel diff per channel (0–255) across the
+# background zone above which camera movement is declared.
+# Static compression noise sits at ~0–3; slow pans reach ~15–30.
+# Increase if static scenes trigger false positives; decrease for slow-pan sensitivity.
+MOTION_PIXEL_THRESHOLD = 8.0
+
+# Angular outlier rejection: buffer angles deviating more than this (degrees)
+# from the provisional circular mean are discarded before computing stable_angle().
+# Protects against single-frame background glitches when no full pan is detected.
+ANGLE_OUTLIER_THRESHOLD = 20.0
+
 # Output file.
 WIND_JSON  = DATA_DIR / "wind.json"
 DEBUG_IMG  = DATA_DIR / "wind_debug.png"
@@ -419,6 +430,11 @@ class WindBuffer:
         self._strengths.append(strength)
         self._angles.append(angle)
 
+    def clear(self) -> None:
+        """Discard all buffered readings (call when camera motion is detected)."""
+        self._strengths.clear()
+        self._angles.clear()
+
     def stable_strength(self, min_fraction: float = 0.6) -> int:
         """
         Return the most common valid (≥0) strength if it appears in at least
@@ -431,8 +447,63 @@ class WindBuffer:
         return mode_val if mode_count / len(valid) >= min_fraction else -1
 
     def stable_angle(self) -> float:
-        """Circular mean of buffered angles, rounded to 1 decimal place."""
-        return round(_circular_mean(list(self._angles)), 1)
+        """Circular mean of buffered angles, with single-pass outlier trimming.
+
+        Computes a provisional mean, discards any angle further than
+        ANGLE_OUTLIER_THRESHOLD degrees from it, then returns the final mean.
+        Falls back to all angles if the trimmed set would be empty.
+        """
+        angles = list(self._angles)
+        provisional = _circular_mean(angles)
+        kept = [a for a in angles if _angular_dist(a, provisional) <= ANGLE_OUTLIER_THRESHOLD]
+        if not kept:
+            kept = angles  # safety fallback
+        return round(_circular_mean(kept), 1)
+
+# ── Motion detection ──────────────────────────────────────────────────────────
+
+def _build_background_mask() -> list[tuple[int, int]]:
+    """Return all pixel coords in the capture region that lie outside the disc.
+
+    The returned list is constant for fixed ROSE_* and SCAN_RADIUS values.
+    Call once at startup and pass the result to detect_motion() each frame.
+    """
+    cx, cy = ROSE_CENTER_X, ROSE_CENTER_Y
+    mask = []
+    for y in range(ROSE_CAPTURE_H):
+        for x in range(ROSE_CAPTURE_W):
+            if math.sqrt((x - cx) ** 2 + (y - cy) ** 2) > SCAN_RADIUS:
+                mask.append((x, y))
+    return mask
+
+
+def detect_motion(
+    prev: Image.Image,
+    curr: Image.Image,
+    bg_mask: list[tuple[int, int]],
+) -> bool:
+    """Return True if the background zone changed significantly between frames.
+
+    Computes the mean absolute pixel difference per channel (MAD) across all
+    background-zone pixels.  A MAD above MOTION_PIXEL_THRESHOLD indicates
+    camera movement.
+
+    Parameters
+    ----------
+    prev : PIL Image (RGB) — previous captured frame
+    curr : PIL Image (RGB) — current captured frame
+    bg_mask : precomputed list of (x, y) coords outside the disc
+    """
+    pp = prev.load()
+    cp = curr.load()
+    total = 0
+    for x, y in bg_mask:
+        r1, g1, b1 = pp[x, y]
+        r2, g2, b2 = cp[x, y]
+        total += abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
+    mad = total / (3 * len(bg_mask))
+    return mad > MOTION_PIXEL_THRESHOLD
+
 
 def _annotate_debug(img: Image.Image, angle: float, tip_pixel: tuple[int, int] | None) -> Image.Image:
     """Return an annotated copy of img showing the scan boundary, OCR box, and detected tip."""
@@ -588,10 +659,28 @@ def run_reader() -> None:
     print("Ctrl+C to stop.\n")
 
     buf = WindBuffer()
+    bg_mask = _build_background_mask()
+    prev_frame: Image.Image | None = None
+    last_stable: dict = {"strength": -1, "angle": 0.0}
+
     with mss.mss() as sct:
         while True:
             try:
-                img          = capture_rose(sct)
+                img = capture_rose(sct)
+
+                # ── Motion detection gate ──────────────────────────────────
+                if prev_frame is not None and detect_motion(prev_frame, img, bg_mask):
+                    buf.clear()
+                    write_wind(last_stable["strength"], last_stable["angle"], stable=False)
+                    print(
+                        f"\r[MOTION]  last: {last_stable['strength']:>3} @"
+                        f" {last_stable['angle']:>6.1f}°    ",
+                        end="", flush=True,
+                    )
+                    prev_frame = img
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
                 raw_angle, _ = detect_direction_shape(img)
                 raw_strength = detect_strength(img)
                 buf.push(raw_strength, raw_angle)
@@ -599,6 +688,8 @@ def run_reader() -> None:
                     strength = buf.stable_strength()
                     angle    = buf.stable_angle()
                     stable   = strength >= 0
+                    if stable:
+                        last_stable = {"strength": strength, "angle": angle}
                     write_wind(strength, angle, stable=stable)
                     print(
                         f"\rWind: {strength:>3} @ {angle:>6.1f}°"
@@ -611,6 +702,7 @@ def run_reader() -> None:
                         f"\rBuffering… ({remaining} frames left)   ",
                         end="", flush=True,
                     )
+                prev_frame = img
             except Exception as exc:
                 print(f"\n[error] {exc}")
             time.sleep(POLL_INTERVAL)

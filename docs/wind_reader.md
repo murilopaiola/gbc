@@ -160,4 +160,65 @@ After Phase 1+2, offset will consistently be (0,0). Replace ±2px search (25 pos
 | Strength self-test | ✅ Passes | Trivially — same files both sides (MAE≈0) |
 | Strength live detection | ⚠️ Unreliable | MAE 17–42, narrow margin, needle flicker |
 | Template library | ⚠️ Incomplete | 24/27 values; templates NOT from live game |
-| `--capture N` flag | ❌ Not implemented | Needed for Phase 1 |
+| `--capture N` flag | ✅ Implemented | Added; user captures templates during gameplay |
+
+---
+
+## 7. Camera stability (feature 002)
+
+### Problem
+
+When the player pans the game camera, the scenery behind the wind rose HUD
+changes rapidly. The direction-detection algorithm misreads moving background
+pixels as needle movement and emits jittery, incorrect angle values to
+`data/wind.json`. The `stable` field was only set to `false` on OCR failures,
+not during camera motion.
+
+### Solution — background motion detection
+
+Two new constants control the behaviour (both tunable without code changes):
+
+| Constant | Default | Purpose |
+|---|---|---|
+| `MOTION_PIXEL_THRESHOLD` | `8.0` | Mean absolute pixel diff per channel across the background zone above which camera movement is declared. Increase to reduce false positives on static scenes; decrease for slow-pan sensitivity. |
+| `ANGLE_OUTLIER_THRESHOLD` | `20.0` | Max angular deviation (degrees) from the buffer's provisional circular mean before a single-frame angle is discarded by `WindBuffer.stable_angle()`. |
+
+### How it works
+
+**Each poll cycle:**
+
+1. A background mask (pixels outside the disc, `dist > SCAN_RADIUS`) is precomputed at startup via `_build_background_mask()`.
+2. `detect_motion(prev_frame, curr_frame, bg_mask)` computes the mean absolute pixel difference per channel across all background-zone pixels.
+3. If MAD > `MOTION_PIXEL_THRESHOLD`:
+   - `WindBuffer` is cleared (contaminated frames discarded).
+   - `wind.json` is written with the last known-good `strength`/`angle` and `stable: false`.
+   - The loop `continue`s — no needle detection runs.
+4. Once the camera stops, the buffer refills over `BUFFER_SIZE × POLL_INTERVAL` ≈ 1.5 s and normal `stable: true` readings resume.
+
+**Angular outlier rejection** (`WindBuffer.stable_angle()`):
+- A provisional circular mean is computed over all buffered angles.
+- Any angle deviating more than `ANGLE_OUTLIER_THRESHOLD` degrees from the provisional mean is discarded.
+- The final stable angle is the circular mean of the surviving angles (fallback to all angles if none survive).
+- Handles single-frame background glitches that slip past motion detection.
+
+### Extended `stable: false` semantics
+
+| Condition | `strength` | `angle` | Cause |
+|---|---|---|---|
+| OCR match failed | -1 | current detection | Existing behaviour |
+| Camera motion detected | last known-good | last known-good | **New** |
+
+Consumers **must not** use `angle` for shot calculation when `stable: false`.
+Consumers **may** display the frozen values as a "last known" hint.
+
+### Tuning guide
+
+```
+Static camera triggers false positives  →  Increase MOTION_PIXEL_THRESHOLD (try 12, 15)
+Slow pans not detected                  →  Decrease MOTION_PIXEL_THRESHOLD (try 6, 4)
+Single-frame glitches shift angle       →  Decrease ANGLE_OUTLIER_THRESHOLD (try 15, 10)
+```
+
+Use `python tools/wind_reader.py --calibrate` to capture a debug image showing
+the background zone boundary (red circle at `SCAN_RADIUS`).
+
